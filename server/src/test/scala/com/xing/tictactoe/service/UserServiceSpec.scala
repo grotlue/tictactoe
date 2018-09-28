@@ -2,6 +2,7 @@ package com.xing.tictactoe.service
 
 import cats.effect.{ContextShift, IO}
 import cats.effect.concurrent.Ref
+import com.xing.tictactoe.service.UserTypes._
 import org.http4s._
 import org.http4s.implicits._
 
@@ -10,7 +11,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class UserServiceSpec extends org.specs2.mutable.Specification {
   implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
-  val usersRef = Ref.of[IO, Map[String, User]](Map.empty)
+  val usersRef = Ref.of[IO, Users](Map.empty)
+  val sessionsRef = Ref.of[IO, Sessions](Map.empty)
 
   "UserService" should {
     "get all users" in {
@@ -104,6 +106,10 @@ class UserServiceSpec extends org.specs2.mutable.Specification {
   }
 
   private def getUserService() = {
-    usersRef.map(ref => new UserService(ref).service)
+    for {
+      users <- usersRef
+      sessions <- sessionsRef
+    } yield new UserService(users, sessions).service
+
   }
 }
