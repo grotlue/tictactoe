@@ -13,6 +13,7 @@ lazy val root = (project in file("."))
   .aggregate(server, client)
 
 lazy val server = (project in file("server"))
+  .enablePlugins(JavaAppPackaging)
   .settings(
     libraryDependencies ++= Seq(
       "org.http4s"      %% "http4s-blaze-server" % Http4sVersion,
@@ -26,6 +27,7 @@ lazy val server = (project in file("server"))
   .dependsOn(model)
 
 lazy val client = (project in file("client"))
+  .enablePlugins(JavaAppPackaging)
   .settings(
     libraryDependencies ++= Seq(
       "org.http4s"      %% "http4s-blaze-client" % Http4sVersion,
