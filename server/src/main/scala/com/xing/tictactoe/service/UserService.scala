@@ -8,6 +8,7 @@ import org.http4s.{HttpRoutes, Response}
 import org.http4s.circe._
 import org.http4s.dsl.Http4sDsl
 import cats.syntax.all._
+import UserTypes._
 
 object UserTypes {
   type Sessions = Map[String, String]
@@ -18,9 +19,8 @@ object UserTypes {
 
 case class User(name: String, password: String)
 
-class UserService(
-    usersRef: UserTypes.UsersRef,
-    sessionsRef: UserTypes.SessionsRef)(implicit val cs: ContextShift[IO])
+class UserService(usersRef: UsersRef, sessionsRef: SessionsRef)(
+    implicit val cs: ContextShift[IO])
     extends Http4sDsl[IO] {
 
   implicit val UserEncoder: Encoder[User] =
@@ -38,7 +38,7 @@ class UserService(
       // Get a list of all users
       case GET -> Root / username =>
         val userResult =
-          withUserReference(usersRef, getUserByUsername(username))
+          withReference(usersRef, getUserByUsername(username))
 
         userResult.flatMap {
           case Some(user) => Ok(user.asJson)
@@ -46,35 +46,35 @@ class UserService(
         }
 
       case GET -> Root =>
-        Ok(withUserReference(usersRef, getUsers()).map(_.asJson))
+        Ok(withReference(usersRef, getUsers()).map(_.asJson))
 
       case PUT -> Root :? UsernameQueryParamMatcher(username) +& PasswordQueryParamMatcher(
             password) =>
         val newUser =
-          withUserReference(usersRef, createUser(username, password))
+          withReference(usersRef, createUser(username, password))
 
         newUser.flatMap {
           case Right(user) =>
             val username = user.name
-            updateUserReference(usersRef, saveUser(user)) >> Ok(
+            updateReference(usersRef, saveUser(user)) >> Ok(
               s"User $username created.")
 
           case Left(error) => BadRequest(error)
         }
 
       case DELETE -> Root / username =>
-        updateUserReference(usersRef, deleteUser(username)) >> Ok(
+        updateReference(usersRef, deleteUser(username)) >> Ok(
           s"User $username deleted.")
 
       case POST -> Root / "authenticate" :? UsernameQueryParamMatcher(username) +& PasswordQueryParamMatcher(
             password) =>
         val authorizedUser =
-          withUserReference(usersRef, authenticate(username, password))
+          withReference(usersRef, authenticate(username, password))
 
         authorizedUser.flatMap {
           case Right(user) =>
             val token = generateToken()
-            updateSessionReference(sessionsRef, login(user, token)) >> Ok(
+            updateReference(sessionsRef, login(user, token)) >> Ok(
               Json.obj("user" -> user.asJson,
                        "token" -> Json.fromString(token)))
           case Left(error) => BadRequest(error)
@@ -82,44 +82,37 @@ class UserService(
     }
   }
 
-  def withUserReference[A](ref: UserTypes.UsersRef,
-                           f: Map[String, User] => A): IO[A] =
+  def withReference[A, B](ref: Ref[IO, Map[String, A]],
+                          f: Map[String, A] => B): IO[B] =
     for {
       map <- ref.get
     } yield f(map)
 
-  def updateUserReference(ref: UserTypes.UsersRef,
-                          f: Map[String, User] => Map[String, User]): IO[Unit] =
+  def updateReference[A](ref: Ref[IO, Map[String, A]],
+                         f: Map[String, A] => Map[String, A]): IO[Unit] =
     ref.update(f)
 
-  def updateSessionReference(
-      ref: UserTypes.SessionsRef,
-      f: UserTypes.Sessions => UserTypes.Sessions): IO[Unit] =
-    ref.update(f)
-
-  def saveUser(user: User)(users: UserTypes.Users): UserTypes.Users = {
+  def saveUser(user: User)(users: Users): Users = {
     users + (user.name -> user)
   }
 
-  def login(user: User, token: String)(
-      sessions: UserTypes.Sessions): UserTypes.Sessions = {
+  def login(user: User, token: String)(sessions: Sessions): Sessions = {
     sessions + (user.name -> token)
   }
 
-  def deleteUser(name: String)(users: UserTypes.Users): UserTypes.Users = {
+  def deleteUser(name: String)(users: Users): Users = {
     users - name
   }
 
-  def getUsers()(users: UserTypes.Users): UserTypes.Users = {
+  def getUsers()(users: Users): Users = {
     users
   }
 
-  def getUserByUsername(username: String)(
-      users: UserTypes.Users): Option[User] = {
+  def getUserByUsername(username: String)(users: Users): Option[User] = {
     users.get(username)
   }
 
-  def userExists(username: String)(users: UserTypes.Users): Boolean = {
+  def userExists(username: String)(users: Users): Boolean = {
     val user = getUserByUsername(username)(users)
 
     user match {
@@ -129,7 +122,7 @@ class UserService(
   }
 
   def createUser(username: String, password: String)(
-      users: UserTypes.Users): Either[String, User] = {
+      users: Users): Either[String, User] = {
 
     if (userExists(username)(users)) return Left("User does already exist.")
 
@@ -140,7 +133,7 @@ class UserService(
     scala.util.Random.alphanumeric.take(20).mkString("")
 
   def authenticate(username: String, password: String)(
-      users: UserTypes.Users): Either[String, User] =
+      users: Users): Either[String, User] =
     getUserByUsername(username)(users) match {
       case Some(user) =>
         if (user.password == password) { return Right(user) }
