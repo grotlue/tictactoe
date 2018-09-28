@@ -4,6 +4,7 @@ import cats.effect._
 import cats.effect.concurrent.Ref
 import cats.implicits._
 import com.xing.tictactoe.service.{TicTacToeService, UserService}
+import com.xing.tictactoe.service.User
 import org.http4s.implicits._
 import org.http4s.server.Router
 import org.http4s.server.blaze.BlazeServerBuilder
@@ -14,13 +15,18 @@ object Main extends IOApp {
 
   implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
-  def userService() = new UserService().service
+  val usersRef =
+    Ref.of[IO, Map[String, User]](Map("horst" -> User("horst", "test")))
+
+  def userService(ref: Ref[IO, Map[String, User]]) =
+    new UserService(ref).service
 
   def tictactoeService() = new TicTacToeService().service
 
   def run(args: List[String]): IO[ExitCode] = {
-    def runServer() = {
-      val httpApp = Router("/users" -> userService(), "/tictactoe" -> tictactoeService()).orNotFound
+    def runServer(ref: Ref[IO, Map[String, User]]) = {
+      val httpApp = Router("/users" -> userService(ref),
+                           "/tictactoe" -> tictactoeService()).orNotFound
 
       BlazeServerBuilder[IO]
         .bindHttp(8080, "localhost")
@@ -34,8 +40,8 @@ object Main extends IOApp {
     IO.contextShift(global)
 
     for {
-      exitCode <- runServer()
+      ref <- usersRef
+      exitCode <- runServer(ref)
     } yield exitCode
   }
 }
-
