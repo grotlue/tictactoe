@@ -24,7 +24,8 @@ lazy val server = (project in file("server"))
       "org.http4s"      %% "http4s-dsl"          % Http4sVersion,
       "org.specs2"      %% "specs2-core"         % Specs2Version % "test",
       "ch.qos.logback"  %  "logback-classic"     % LogbackVersion
-    )
+    ),
+    addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
   )
   .dependsOn(model)
 
@@ -39,8 +40,18 @@ lazy val client = (project in file("client"))
       "io.circe"        %% "circe-generic"       % CirceVersion,
       "org.specs2"      %% "specs2-core"         % Specs2Version % "test",
       "ch.qos.logback"  %  "logback-classic"     % LogbackVersion
-    )
+    ),
+    addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
   )
   .dependsOn(model)
 
 lazy val model = (project in file("model"))
+  .enablePlugins(JavaAppPackaging)
+  .settings(
+    libraryDependencies ++= Seq(
+      "io.circe"        %% "circe-core"          % CirceVersion,
+      "io.circe"        %% "circe-parser"        % CirceVersion,
+      "io.circe"        %% "circe-generic"       % CirceVersion
+    ),
+    addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
+  )
